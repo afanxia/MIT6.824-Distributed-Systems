@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"sort"
-	"strconv"
 )
 
 func doReduce(
@@ -53,11 +52,11 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
-		var (
+	var (
 		inFile string
-		kv KeyValue
-		kvs []KeyValue
-		key string
+		kv     KeyValue
+		kvs    []KeyValue
+		key    string
 		values []string
 	)
 	// read reduceTask'th file from each nMap
@@ -85,9 +84,7 @@ func doReduce(
 
 	// sort the kvs by Key
 	sort.Slice(kvs, func(i, j int) bool {
-		k1, _ := strconv.Atoi(kvs[i].Key)
-		k2, _ := strconv.Atoi(kvs[j].Key)
-		return  k1 < k2
+		return kvs[i].Key < kvs[j].Key
 	})
 
 	// create output file
