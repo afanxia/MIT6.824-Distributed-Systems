@@ -35,7 +35,6 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	//
 
 	var wg sync.WaitGroup
-	var args *DoTaskArgs
 	for i := 0; i < ntasks; i++ {
 		select {
 		case worker := <-registerChan:
@@ -43,7 +42,7 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 			wg.Add(1)
 			// Launch a goroutine to do map/reduce.
 			go func(i int) {
-				args = &DoTaskArgs{
+				args := &DoTaskArgs{
 					JobName:       jobName,
 					File:          mapFiles[i],
 					Phase:         phase,
