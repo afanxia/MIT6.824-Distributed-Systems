@@ -35,48 +35,26 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	//
 
 	var (
-		q        []int
-		mu       *sync.Mutex
-		complete bool
+		taskCh chan int
+		wg     sync.WaitGroup
 	)
-	// init task queue
+	taskCh = make(chan int, ntasks)
+	// init task channel
 	for i := 0; i < ntasks; i++ {
-		q = append(q, 0)
+		taskCh <- i
 	}
-	mu = &sync.Mutex{}
+	wg.Add(ntasks)
 
-	for {
-		// var wg sync.WaitGroup
-		wg := &sync.WaitGroup{}
-
-		// if complete, all tasks are done successfully.
-		complete = true
-		mu.Lock()
-		for i := 0; i < ntasks; i++ {
-			if q[i] == 0 {
-				complete = false
-				break
-			}
-		}
-		mu.Unlock()
-		if complete {
-			break
-		}
-
-		// schedule
-		for i := 0; i < ntasks; i++ {
-			mu.Lock()
-			if q[i] == 1 {
-				mu.Unlock()
-				continue
-			}
-			mu.Unlock()
-
-			select {
-			case worker := <-registerChan:
-				wg.Add(1)
-				// Launch a goroutine to do map/reduce.
-				go func(wg *sync.WaitGroup, i int) {
+	// schedule
+	go func() {
+		for {
+			// for each task
+			task := <-taskCh
+			// Launch a goroutine to do map/reduce.
+			go func(i int) {
+				for {
+					// get a worker
+					worker := <-registerChan
 					args := &DoTaskArgs{
 						JobName:       jobName,
 						File:          mapFiles[i],
@@ -90,21 +68,19 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 					if ok == false {
 						fmt.Printf("Worker: RPC %s DoTask %d error, will re-assign it later\n", worker, i)
 					} else {
-						mu.Lock()
-						q[i] = 1
-						mu.Unlock()
+						fmt.Printf("Worker: RPC %s DoTask %d is done\n", worker, i)
+						// Decrement the counter when the goroutine completes.
+						wg.Done()
+						// Release the worker for next job
+						registerChan <- worker
+						break
 					}
-					// After current worker is done, no matter failed or not, will do following 2 steps.
-					// 1. Decrement the counter when the goroutine completes.
-					wg.Done()
-					// 2. Release the worker for next job
-					registerChan <- worker
-				}(wg, i)
-			}
+				}
+			}(task)
 		}
-		// Wait for all workers to complete.
-		wg.Wait()
-	}
+	}()
+	// Wait for all workers to complete.
+	wg.Wait()
 
 	fmt.Printf("Schedule: %v done\n", phase)
 }
